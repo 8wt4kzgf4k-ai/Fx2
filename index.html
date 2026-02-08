@@ -2,39 +2,125 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Forex Forecast Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forex Candle Probability Dashboard</title>
 <style>
-  body { background-color: #000; color: #fff; font-family: Arial, sans-serif; padding: 20px; }
-  h1 { text-align: center; margin-bottom: 20px; }
-  select, .timeframe-select { margin: 10px 10px 20px 0; padding: 5px; font-size: 16px; }
-  #dashboard { margin-top: 20px; padding: 15px; border: 1px solid #fff; border-radius: 8px; }
-  .pair-title { font-size: 22px; margin-bottom: 15px; text-align: center; }
-  .signal { margin: 8px 0; font-size: 18px; }
-  .bullish { color: #00FF00; font-weight: bold; }
-  .neutral { color: #FFFF00; font-weight: bold; }
-  .bearish { color: #FF0000; font-weight: bold; }
+  body {
+      background-color: #000;
+      color: #fff;
+      font-family: Arial, sans-serif;
+      padding: 20px;
+  }
+  h1 {
+      text-align: center;
+      color: #00ffcc;
+  }
+  select {
+      font-size: 16px;
+      padding: 5px;
+      margin: 5px;
+  }
+  .dashboard {
+      margin-top: 20px;
+      padding: 10px;
+      border: 1px solid #444;
+      border-radius: 5px;
+      background-color: #111;
+  }
+  .candle-block {
+      margin-bottom: 20px;
+  }
+  .bar-container {
+      display: flex;
+      height: 25px;
+      width: 100%;
+      background-color: #222;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 5px;
+  }
+  .bar-bull {
+      background-color: #00ff00;
+      height: 100%;
+      text-align: right;
+      color: #000;
+      font-weight: bold;
+      padding-right: 5px;
+  }
+  .bar-neutral {
+      background-color: #ffff00;
+      height: 100%;
+      text-align: right;
+      color: #000;
+      font-weight: bold;
+      padding-right: 5px;
+  }
+  .bar-bear {
+      background-color: #ff0000;
+      height: 100%;
+      text-align: right;
+      color: #000;
+      font-weight: bold;
+      padding-right: 5px;
+  }
+  .signal-text {
+      font-weight: bold;
+      margin-bottom: 5px;
+      display: block;
+  }
+  #countdown {
+      font-size: 18px;
+      margin-top: 10px;
+      color: #00ffff;
+  }
 </style>
 </head>
 <body>
 
-<h1>Forex Forecast Dashboard</h1>
+<h1>Forex Candle Probability Dashboard</h1>
 
-<label for="pairSelect">Select Currency Pair:</label>
-<select id="pairSelect"></select>
+<div>
+  <label>Currency Pair: </label>
+  <select id="pairSelect"></select>
+  <label>Timeframe: </label>
+  <select id="timeframeSelect">
+      <option value="1">1 min</option>
+      <option value="3">3 min</option>
+      <option value="5" selected>5 min</option>
+  </select>
+</div>
 
-<label for="timeframeSelect">Select Timeframe:</label>
-<select id="timeframeSelect" class="timeframe-select">
-  <option value="1">1 Minute</option>
-  <option value="3" selected>3 Minutes</option>
-  <option value="5">5 Minutes</option>
-</select>
+<div class="dashboard">
+  <h2 id="pairTitle">Loading...</h2>
 
-<div id="dashboard">
-  <div class="pair-title" id="pairTitle"></div>
-  <div class="signal" id="p1Signal"></div>
-  <div class="signal" id="p2Signal"></div>
-  <div class="signal" id="p3Signal"></div>
-  <div class="signal" id="countdown"></div>
+  <div class="candle-block" id="p1Signal">
+      Loading next candle...
+      <div class="bar-container">
+          <div class="bar-bull" style="width:0%">0</div>
+          <div class="bar-neutral" style="width:0%">0</div>
+          <div class="bar-bear" style="width:0%">0</div>
+      </div>
+  </div>
+
+  <div class="candle-block" id="p2Signal">
+      Loading 2nd candle...
+      <div class="bar-container">
+          <div class="bar-bull" style="width:0%">0</div>
+          <div class="bar-neutral" style="width:0%">0</div>
+          <div class="bar-bear" style="width:0%">0</div>
+      </div>
+  </div>
+
+  <div class="candle-block" id="p3Signal">
+      Loading 3rd candle...
+      <div class="bar-container">
+          <div class="bar-bull" style="width:0%">0</div>
+          <div class="bar-neutral" style="width:0%">0</div>
+          <div class="bar-bear" style="width:0%">0</div>
+      </div>
+  </div>
+
+  <div id="countdown">Next Candle in: --</div>
 </div>
 
 <script src="dashboard.js"></script>
