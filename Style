@@ -1,0 +1,36 @@
+body {
+    margin: 0;
+    background: #000000;
+    color: #ffffff;
+    font-family: Arial, sans-serif;
+}
+h1 {
+    text-align: center;
+    margin: 10px 0;
+    font-size: 20px;
+}
+.grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px;
+}
+.card {
+    background: #111111;
+    border-radius: 8px;
+    padding: 12px;
+    min-height: 130px;
+}
+.bull { color: #00ff88; }
+.bear { color: #ff4d4d; }
+.neutral { color: #cccccc; }
+.arrow { font-size: 18px; font-weight: bold; }
+.warn { color: #ffaa00; font-size: 12px; }
+.timer { font-size: 16px; margin-top: 6px; }
+.small { font-size: 12px; opacity: 0.8; }
+
+@media screen and (max-width: 500px) {
+    .card { font-size: 14px; padding: 8px; }
+    .timer { font-size: 14px; }
+    .small { font-size: 10px; }
+}
