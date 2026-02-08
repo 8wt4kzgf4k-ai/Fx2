@@ -4,11 +4,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const API_KEY = "f6e69ff791404a24b736a913676eca5e"; 
   // =============================================================
 
-  // Currency Pairs
+  // 7 Major Forex Pairs
   const PAIRS = [
-    "EUR/USD","GBP/USD","USD/JPY","USD/CHF","USD/CAD","AUD/USD","NZD/USD",
-    "EUR/GBP","EUR/JPY","GBP/JPY","AUD/JPY","EUR/AUD","GBP/CHF","AUD/CAD",
-    "EUR/NZD","CAD/JPY","CHF/JPY","NZD/JPY","GBP/CAD"
+    "EUR/USD","GBP/USD","USD/JPY","USD/CHF","USD/CAD","AUD/USD","NZD/USD"
   ];
 
   // DOM Elements
@@ -33,41 +31,50 @@ document.addEventListener("DOMContentLoaded", () => {
   let selectedTimeframe = parseInt(timeframeSelect.value);
   let nextCandle = Date.now() + selectedTimeframe*60000;
   let candleHistory = [];
+  let candleHistory30m = [];
 
-  // Event handlers
-  pairSelect.addEventListener("change", e => {
+  // ==================== Event Listeners ====================
+  pairSelect.addEventListener("change", async e => {
       selectedPair = e.target.value;
-      fetchCandleHistory();
+      await fetchAllCandleHistory();
+      updateDashboard(); // Update immediately after changing pair
   });
-  timeframeSelect.addEventListener("change", e => {
+  timeframeSelect.addEventListener("change", async e => {
       selectedTimeframe = parseInt(e.target.value);
       nextCandle = Date.now() + selectedTimeframe*60000;
-      fetchCandleHistory();
+      await fetchAllCandleHistory();
+      updateDashboard(); // Update immediately after changing timeframe
   });
 
-  // ======================== API & Data Fetch ========================
-  async function fetchCandleHistory() {
-      if(!selectedPair) return;
+  // ==================== Fetch Candle Data ====================
+  async function fetchCandleHistory(tf) {
+      if(!selectedPair) return [];
       try {
           const symbol = selectedPair.replace("/", "");
-          const interval = selectedTimeframe + "min";
-          const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=${interval}&outputsize=100&apikey=${API_KEY}`;
+          const url = `https://api.twelvedata.com/time_series?symbol=${symbol}&interval=${tf}&outputsize=100&apikey=${API_KEY}`;
           const res = await fetch(url);
           const data = await res.json();
           if(data && data.values) {
-              candleHistory = data.values.reverse().map(c => ({
+              return data.values.reverse().map(c => ({
                   open: parseFloat(c.open),
                   high: parseFloat(c.high),
                   low: parseFloat(c.low),
                   close: parseFloat(c.close)
               }));
           }
+          return [];
       } catch(err) {
           console.error("Error fetching candle history:", err);
+          return [];
       }
   }
 
-  // ======================== INDICATOR FUNCTIONS ========================
+  async function fetchAllCandleHistory(){
+      candleHistory = await fetchCandleHistory(selectedTimeframe+"min");
+      candleHistory30m = await fetchCandleHistory("30min");
+  }
+
+  // ==================== Indicators ====================
   function EMA(values, period) {
       let k = 2 / (period + 1);
       let emaArray = [];
@@ -139,49 +146,49 @@ document.addEventListener("DOMContentLoaded", () => {
       return atrArray;
   }
 
-  // ======================== PROBABILITY & SIGNAL ========================
-  function calculateProbability(){
-      if(candleHistory.length<30) return {bull:0.5, neutral:0.1, bear:0.4, power:0.5};
-      const closes = candleHistory.map(c=>c.close);
+  // ==================== Probability Calculation ====================
+  function calculateProbability(candlesShort, candles30m){
+      if(candlesShort.length<30 || candles30m.length<30) return {bull:0.5, neutral:0.1, bear:0.4, power:0.5};
 
-      const emaFast = EMA(closes, 9);
-      const emaSlow = EMA(closes, 21);
-      const emaSignal = emaFast[emaFast.length-1] > emaSlow[emaSlow.length-1] ? 1 : -1;
+      const closesShort = candlesShort.map(c=>c.close);
+      const closes30m = candles30m.map(c=>c.close);
 
-      const rsiArray = RSI(closes, 14);
-      const rsiSignal = rsiArray[rsiArray.length-1] > 70 ? -1 : (rsiArray[rsiArray.length-1] < 30 ? 1 : 0);
+      function singleTFSignal(closes){
+          const emaSignal = EMA(closes,9).slice(-1)[0] > EMA(closes,21).slice(-1)[0] ? 1 : -1;
+          const rsiArr = RSI(closes,14);
+          const rsiSignal = rsiArr[rsiArr.length-1] > 70 ? -1 : (rsiArr[rsiArr.length-1] < 30 ? 1 : 0);
+          const macdObj = MACD(closes);
+          const macdSignal = macdObj.histogram[macdObj.histogram.length-1]>0 ? 1 : -1;
+          const bbObj = Bollinger(closes);
+          const lastClose = closes[closes.length-1];
+          const bbSignal = lastClose>bbObj.upper[bbObj.upper.length-1] ? -1 : (lastClose<bbObj.lower[bbObj.lower.length-1]?1:0);
+          const atrArr = ATR(candlesShort);
+          const atr = atrArr[atrArr.length-1] || 0;
+          const trendSignal = emaSignal + macdSignal;
+          const weight = {ema:0.25,rsi:0.2,macd:0.2,bb:0.15,trend:0.1};
+          let rawScore = emaSignal*weight.ema + rsiSignal*weight.rsi + macdSignal*weight.macd + bbSignal*weight.bb + trendSignal*weight.trend*0.05;
+          let bull = (rawScore+1)/2;
+          let bear = 1-bull;
+          let neutralMargin = 0.1*(1-Math.abs(rawScore));
+          bull *= (1-neutralMargin);
+          bear *= (1-neutralMargin);
+          let neutral = neutralMargin;
+          let power = Math.min(1,bull+bear)*atr/Math.max(...atrArr);
+          return {bull, bear, neutral, power};
+      }
 
-      const macdObj = MACD(closes);
-      const macdSignal = macdObj.histogram[macdObj.histogram.length-1] > 0 ? 1 : -1;
+      const shortProb = singleTFSignal(closesShort);
+      const longProb = singleTFSignal(closes30m);
 
-      const bbObj = Bollinger(closes);
-      const lastClose = closes[closes.length-1];
-      const bbSignal = lastClose > bbObj.upper[bbObj.upper.length-1] ? -1 :
-                       (lastClose < bbObj.lower[bbObj.lower.length-1] ? 1 : 0);
+      // Weighted 50% short + 50% 30m
+      const finalProb = {
+          bull: parseFloat(((shortProb.bull*0.5 + longProb.bull*0.5).toFixed(2))),
+          bear: parseFloat(((shortProb.bear*0.5 + longProb.bear*0.5).toFixed(2))),
+          neutral: parseFloat(((shortProb.neutral*0.5 + longProb.neutral*0.5).toFixed(2))),
+          power: parseFloat(((shortProb.power*0.5 + longProb.power*0.5).toFixed(2)))
+      };
 
-      const atrArray = ATR(candleHistory);
-      const atr = atrArray[atrArray.length-1] || 0;
-
-      const trendSignal = emaSignal + macdSignal;
-
-      const weight = {ema:0.25, rsi:0.2, macd:0.2, bb:0.15, trend:0.1};
-
-      let rawScore = emaSignal*weight.ema + rsiSignal*weight.rsi + macdSignal*weight.macd + bbSignal*weight.bb + trendSignal*weight.trend*0.05;
-
-      // Convert rawScore (-1 to 1 approx) to 0-1
-      let bull = (rawScore + 1)/2;
-      let bear = 1 - bull;
-
-      // Include neutral margin based on closeness to 0
-      let neutralMargin = 0.1 * (1 - Math.abs(rawScore));
-      bull = bull * (1 - neutralMargin);
-      bear = bear * (1 - neutralMargin);
-      let neutral = neutralMargin;
-
-      // Power normalized 0-1
-      let power = Math.min(1, bull + bear) * atr/Math.max(...atrArray);
-
-      return {bull:parseFloat(bull.toFixed(2)), neutral:parseFloat(neutral.toFixed(2)), bear:parseFloat(bear.toFixed(2)), power:parseFloat(power.toFixed(2))};
+      return finalProb;
   }
 
   function updateBars(container, probs){
@@ -199,23 +206,11 @@ document.addEventListener("DOMContentLoaded", () => {
       bearBar.textContent = probs.bear;
   }
 
-  // ======================== UPDATE DASHBOARD ========================
-  function updateDashboard(){
-      const probs = calculateProbability();
-      pairTitle.textContent = `Forecast for ${selectedPair} (${selectedTimeframe}m)`;
-
-      updateBars(p1Signal, probs);
-
-      let p2 = {...probs, bull:(probs.bull*0.9), bear:(probs.bear*0.9), neutral:(probs.neutral*0.9)};
-      updateBars(p2Signal, p2);
-
-      let p3 = {...probs, bull:(probs.bull*0.8), bear:(probs.bear*0.8), neutral:(probs.neutral*0.8)};
-      updateBars(p3Signal, p3);
-
+  // ==================== Countdown ====================
+  function updateCountdown(){
       let remaining = nextCandle - Date.now();
       if(remaining<0){
           nextCandle = Date.now() + selectedTimeframe*60000;
-          fetchCandleHistory();
           remaining = selectedTimeframe*60000;
       }
       let m = Math.floor(remaining/60000);
@@ -223,9 +218,26 @@ document.addEventListener("DOMContentLoaded", () => {
       countdown.textContent = `Next Candle in: ${m}m ${s}s`;
   }
 
-  // ======================== INITIAL FETCH & INTERVAL ========================
-  fetchCandleHistory();
-  setInterval(updateDashboard, 1000); // update dashboard every second
-  setInterval(fetchCandleHistory, 5000); // fetch new candles every 5 seconds
+  // ==================== Update Dashboard ====================
+  async function updateDashboard(){
+      const probs = calculateProbability(candleHistory, candleHistory30m);
+      pairTitle.textContent = `Forecast for ${selectedPair} (${selectedTimeframe}m aligned to 30m)`;
+      updateBars(p1Signal, probs);
+      updateBars(p2Signal, {...probs, bull:(probs.bull*0.9), bear:(probs.bear*0.9), neutral:(probs.neutral*0.9)});
+      updateBars(p3Signal, {...probs, bull:(probs.bull*0.8), bear:(probs.bear*0.8), neutral:(probs.neutral*0.8)});
+      updateCountdown();
+  }
+
+  // ==================== Initial Fetch & Intervals ====================
+  fetchAllCandleHistory().then(()=>updateDashboard());
+
+  // Update countdown every second
+  setInterval(updateCountdown, 1000);
+
+  // Update probability every 15 seconds
+  setInterval(async () => {
+      await fetchAllCandleHistory();
+      updateDashboard();
+  }, 15000);
 
 });
