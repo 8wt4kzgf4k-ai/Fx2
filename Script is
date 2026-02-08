@@ -1,0 +1,115 @@
+const API_KEY = "PUT_YOUR_API_KEY_HERE"; // Replace with your real key
+
+const PAIRS = ["EUR/USD","GBP/USD","USD/JPY","USD/CHF","USD/CAD","AUD/USD","NZD/USD"];
+const EXEC_TF = 300;
+const HTF_30M = 1800;
+const HTF_1H = 3600;
+const DECAY = 0.95;
+const FATIGUE_MINUTES = 90;
+const LOW_PROB_WARNING = 0.55;
+
+let prices = {};
+let candleStart = Math.floor(Date.now() / 1000);
+let sessionStart = Date.now();
+
+const dash = document.getElementById("dashboard");
+
+PAIRS.forEach(pair => {
+    dash.innerHTML += `
+    <div class="card" id="${pair}">
+        <strong>${pair}</strong>
+        <div class="signal neutral">● Waiting for prices…</div>
+        <div>P1: <span class="p1">0.00</span> <span class="arrow p1-arrow">→</span></div>
+        <div>P2: <span class="p2">0.00</span> <span class="arrow p2-arrow">→</span></div>
+        <div>P3: <span class="p3">0.00</span> <span class="arrow p3-arrow">→</span></div>
+        <div class="timer">Next candle: <span class="cd">00:00</span></div>
+        <div class="small htf">HTF: Neutral</div>
+        <div class="warn fatigue"></div>
+        <div class="warn risk"></div>
+    </div>`;
+});
+
+const ws = new WebSocket(`wss://ws.twelvedata.com/v1/quotes/price?apikey=${API_KEY}`);
+
+ws.onopen = () => {
+    ws.send(JSON.stringify({
+        action: "subscribe",
+        params: { symbols: PAIRS.join(",") }
+    }));
+};
+
+ws.onmessage = e => {
+    const d = JSON.parse(e.data);
+    if (d.symbol && d.price) {
+        prices[d.symbol] = parseFloat(d.price);
+    }
+};
+
+function countdown(tf) {
+    const now = Math.floor(Date.now() / 1000);
+    return tf - ((now - candleStart) % tf);
+}
+
+function probability(price, htfBias) {
+    let momentum = Math.sin(Date.now() / 60000);
+    let priceBias = (price % 1) * 0.4;
+    let p = 0.5 + momentum * 0.15 + priceBias * 0.1 + htfBias;
+    return Math.max(0.05, Math.min(0.95, p));
+}
+
+function fatiguePenalty() {
+    let mins = (Date.now() - sessionStart) / 60000;
+    return mins > FATIGUE_MINUTES ? 0.07 : 0;
+}
+
+setInterval(() => {
+    PAIRS.forEach(pair => {
+        const card = document.getElementById(pair);
+        if (!card) return;
+
+        const price = prices[pair];
+        if (!price) return;
+
+        let htfBias =
+            Math.sin(Date.now() / HTF_30M / 1000) * 0.05 +
+            Math.sin(Date.now() / HTF_1H / 1000) * 0.05;
+
+        let p1 = probability(price, htfBias) - fatiguePenalty();
+        let p2 = p1 * DECAY;
+        let p3 = p2 * DECAY;
+
+        card.querySelector(".p1").textContent = p1.toFixed(2);
+        card.querySelector(".p2").textContent = p2.toFixed(2);
+        card.querySelector(".p3").textContent = p3.toFixed(2);
+
+        const sig = card.querySelector(".signal");
+
+        if (p1 > 0.6) {
+            sig.textContent = "↑ Bullish";
+            sig.className = "signal bull";
+        } else if (p1 < 0.4) {
+            sig.textContent = "↓ Bearish";
+            sig.className = "signal bear";
+        } else {
+            sig.textContent = "● Neutral";
+            sig.className = "signal neutral";
+        }
+
+        card.querySelector(".p1-arrow").textContent = p1>0.55?"↑":p1<0.45?"↓":"→";
+        card.querySelector(".p2-arrow").textContent = p2>0.55?"↑":p2<0.45?"↓":"→";
+        card.querySelector(".p3-arrow").textContent = p3>0.55?"↑":p3<0.45?"↓":"→";
+
+        let r = countdown(EXEC_TF);
+        card.querySelector(".cd").textContent =
+            `${String(Math.floor(r/60)).padStart(2,"0")}:${String(r%60).padStart(2,"0")}`;
+
+        card.querySelector(".htf").textContent =
+            htfBias > 0 ? "HTF: Bullish" : htfBias < 0 ? "HTF: Bearish" : "HTF: Neutral";
+
+        card.querySelector(".fatigue").textContent =
+            fatiguePenalty() > 0 ? "⚠ Fatigue risk – reduce trading" : "";
+
+        card.querySelector(".risk").textContent =
+            p1 < LOW_PROB_WARNING ? "⚠ Low probability – skip trade" : "";
+    });
+}, 1000);
