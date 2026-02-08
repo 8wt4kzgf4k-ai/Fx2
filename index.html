@@ -1,128 +1,193 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Forex Candle Probability Dashboard</title>
-<style>
-  body {
-      background-color: #000;
-      color: #fff;
-      font-family: Arial, sans-serif;
-      padding: 20px;
-  }
-  h1 {
-      text-align: center;
-      color: #00ffcc;
-  }
-  select {
-      font-size: 16px;
-      padding: 5px;
-      margin: 5px;
-  }
-  .dashboard {
-      margin-top: 20px;
-      padding: 10px;
-      border: 1px solid #444;
-      border-radius: 5px;
-      background-color: #111;
-  }
-  .candle-block {
-      margin-bottom: 20px;
-  }
-  .bar-container {
-      display: flex;
-      height: 25px;
-      width: 100%;
-      background-color: #222;
-      border-radius: 4px;
-      overflow: hidden;
-      margin-top: 5px;
-  }
-  .bar-bull {
-      background-color: #00ff00;
-      height: 100%;
-      text-align: right;
-      color: #000;
-      font-weight: bold;
-      padding-right: 5px;
-  }
-  .bar-neutral {
-      background-color: #ffff00;
-      height: 100%;
-      text-align: right;
-      color: #000;
-      font-weight: bold;
-      padding-right: 5px;
-  }
-  .bar-bear {
-      background-color: #ff0000;
-      height: 100%;
-      text-align: right;
-      color: #000;
-      font-weight: bold;
-      padding-right: 5px;
-  }
-  .signal-text {
-      font-weight: bold;
-      margin-bottom: 5px;
-      display: block;
-  }
-  #countdown {
-      font-size: 18px;
-      margin-top: 10px;
-      color: #00ffff;
-  }
-</style>
+    <meta charset="UTF-8">
+    <title>Forex 3-Candle Forecast with Accuracy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #111;
+            color: #eee;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        #dashboard {
+            max-width: 700px;
+            width: 100%;
+            text-align: center;
+        }
+        select {
+            padding: 5px 10px;
+            font-size: 16px;
+        }
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            font-size: 16px;
+        }
+        th, td {
+            padding: 8px;
+            border-bottom: 1px solid #444;
+        }
+        th {
+            text-align: center;
+        }
+        td {
+            text-align: center;
+        }
+        #countdown, #overallAccuracy {
+            margin-top: 10px;
+            font-size: 16px;
+        }
+    </style>
 </head>
 <body>
+<div id="dashboard">
+    <h2>Forex Next 3 Candles Forecast with Accuracy</h2>
 
-<h1>Forex Candle Probability Dashboard</h1>
+    <label for="pairSelect">Select Pair:</label>
+    <select id="pairSelect">
+        <option value="EUR/USD">EUR/USD</option>
+        <option value="GBP/USD">GBP/USD</option>
+        <option value="USD/JPY">USD/JPY</option>
+        <option value="USD/CHF">USD/CHF</option>
+        <option value="USD/CAD">USD/CAD</option>
+        <option value="AUD/USD">AUD/USD</option>
+        <option value="NZD/USD">NZD/USD</option>
+    </select>
 
-<div>
-  <label>Currency Pair: </label>
-  <select id="pairSelect"></select>
-  <label>Timeframe: </label>
-  <select id="timeframeSelect">
-      <option value="1">1 min</option>
-      <option value="3">3 min</option>
-      <option value="5" selected>5 min</option>
-  </select>
+    <div id="countdown">Next Candle in: 00:00</div>
+    <div id="overallAccuracy">Cumulative Accuracy: 0%</div>
+
+    <table>
+        <thead>
+        <tr>
+            <th>Candle</th>
+            <th>Prob Higher</th>
+            <th>Prob Lower</th>
+            <th>Power</th>
+            <th>Accuracy</th>
+        </tr>
+        </thead>
+        <tbody id="forecastBody">
+        <tr>
+            <td>1</td>
+            <td>0.00</td>
+            <td>0.00</td>
+            <td>0.00</td>
+            <td>0.00</td>
+        </tr>
+        <tr>
+            <td>2</td>
+            <td>0.00</td>
+            <td>0.00</td>
+            <td>0.00</td>
+            <td>0.00</td>
+        </tr>
+        <tr>
+            <td>3</td>
+            <td>0.00</td>
+            <td>0.00</td>
+            <td>0.00</td>
+            <td>0.00</td>
+        </tr>
+        </tbody>
+    </table>
 </div>
 
-<div class="dashboard">
-  <h2 id="pairTitle">Loading...</h2>
+<script>
+    const apiKey = "YOUR_TWELVE_DATA_API_KEY"; // <-- Replace with your API key
+    const forecastBody = document.getElementById("forecastBody");
+    const pairSelect = document.getElementById("pairSelect");
+    const countdownEl = document.getElementById("countdown");
+    const overallAccuracyEl = document.getElementById("overallAccuracy");
 
-  <div class="candle-block" id="p1Signal">
-      Loading next candle...
-      <div class="bar-container">
-          <div class="bar-bull" style="width:0%">0</div>
-          <div class="bar-neutral" style="width:0%">0</div>
-          <div class="bar-bear" style="width:0%">0</div>
-      </div>
-  </div>
+    let countdown = 60;
+    let cumulativeHits = 0;
+    let cumulativeTotal = 0;
+    let lastClose = null; // to track actual next candle closes
 
-  <div class="candle-block" id="p2Signal">
-      Loading 2nd candle...
-      <div class="bar-container">
-          <div class="bar-bull" style="width:0%">0</div>
-          <div class="bar-neutral" style="width:0%">0</div>
-          <div class="bar-bear" style="width:0%">0</div>
-      </div>
-  </div>
+    // Countdown timer
+    setInterval(() => {
+        countdown--;
+        if (countdown < 0) countdown = 60;
+        let minutes = Math.floor(countdown / 60);
+        let seconds = countdown % 60;
+        countdownEl.textContent = `Next Candle in: ${minutes.toString().padStart(2,'0')}:${seconds.toString().padStart(2,'0')}`;
+    }, 1000);
 
-  <div class="candle-block" id="p3Signal">
-      Loading 3rd candle...
-      <div class="bar-container">
-          <div class="bar-bull" style="width:0%">0</div>
-          <div class="bar-neutral" style="width:0%">0</div>
-          <div class="bar-bear" style="width:0%">0</div>
-      </div>
-  </div>
+    async function updateForecast() {
+        const pair = pairSelect.value.replace("/", "");
+        try {
+            const response = await fetch(`https://api.twelvedata.com/time_series?symbol=${pair}&interval=1min&outputsize=50&apikey=${apiKey}`);
+            const data = await response.json();
 
-  <div id="countdown">Next Candle in: --</div>
-</div>
+            if (!data.values) return;
+            const prices = data.values.map(c => parseFloat(c.close));
+            const currentPrice = prices[0];
 
-<script src="dashboard.js"></script>
+            // Track accuracy from previous candle
+            if (lastClose !== null) {
+                const prevPrediction = JSON.parse(localStorage.getItem('prevPrediction')) || [];
+                prevPrediction.forEach((pred, idx) => {
+                    let actualHigher = currentPrice > pred.refPrice ? 1 : 0;
+                    if (idx === 0) { // only track first candle for simplicity
+                        cumulativeHits += (actualHigher === (pred.higher > 0.5) ? 1 : 0);
+                        cumulativeTotal++;
+                    }
+                });
+                overallAccuracyEl.textContent = `Cumulative Accuracy: ${(cumulativeHits / cumulativeTotal * 100).toFixed(2)}%`;
+            }
+
+            lastClose = currentPrice;
+
+            // Example probabilities (replace with your multi-indicator calculations)
+            const probNext1 = Math.random();
+            const probNext2 = Math.random();
+            const probNext3 = Math.random();
+
+            const forecastData = [
+                { higher: probNext1, lower: 1 - probNext1, power: Math.random(), refPrice: currentPrice },
+                { higher: probNext2, lower: 1 - probNext2, power: Math.random(), refPrice: currentPrice },
+                { higher: probNext3, lower: 1 - probNext3, power: Math.random(), refPrice: currentPrice }
+            ];
+
+            // Store predictions for accuracy tracking
+            localStorage.setItem('prevPrediction', JSON.stringify(forecastData));
+
+            // Update table
+            forecastBody.innerHTML = "";
+            forecastData.forEach((candle, index) => {
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${index + 1}</td>
+                    <td>${candle.higher.toFixed(2)}</td>
+                    <td>${candle.lower.toFixed(2)}</td>
+                    <td>${candle.power.toFixed(2)}</td>
+                    <td>--</td>
+                `;
+                forecastBody.appendChild(row);
+            });
+
+        } catch (err) {
+            console.error("Error fetching data:", err);
+        }
+    }
+
+    pairSelect.addEventListener("change", () => {
+        countdown = 60;
+        updateForecast();
+    });
+
+    // Initial fetch and set interval
+    updateForecast();
+    setInterval(updateForecast, 15000);
+
+</script>
 </body>
 </html>
