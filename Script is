@@ -1,4 +1,4 @@
-const API_KEY = "PUT_YOUR_API_KEY_HERE"; // Replace with your real key
+const API_KEY ="03df54131c4144b58b58aa146c0fcecf"; // Replace with your real key
 
 const PAIRS = ["EUR/USD","GBP/USD","USD/JPY","USD/CHF","USD/CAD","AUD/USD","NZD/USD"];
 const EXEC_TF = 300;
