@@ -1,10 +1,10 @@
 // ================== INSERT YOUR API KEY HERE ==================
-const API_KEY = "03df54131c4144b58b58aa146c0fcecf"; // Replace YOUR_REAL_API_KEY_HERE with your actual TwelveData API key
+const API_KEY = "03df54131c4144b58b58aa146c0fcecf"; // Replace with your actual TwelveData API key
 // =============================================================
 
 // Settings
 const PAIRS = ["EUR/USD","GBP/USD","USD/JPY","USD/CHF","USD/CAD","AUD/USD","NZD/USD"];
-const EXEC_TF = 300;      // 5 minutes
+const TFs = [60, 180, 300]; // 1m, 3m, 5m in seconds
 const HTF_30M = 1800;
 const HTF_1H = 3600;
 const DECAY = 0.95;
@@ -20,18 +20,23 @@ let sessionStart = Date.now();
 const dash = document.getElementById("dashboard");
 
 PAIRS.forEach(pair => {
-    dash.innerHTML += `
-    <div class="card" id="${pair}">
-        <strong>${pair}</strong>
-        <div class="signal neutral">● Waiting for prices…</div>
-        <div>P1: <span class="p1">0.00</span> <span class="arrow p1-arrow">→</span></div>
-        <div>P2: <span class="p2">0.00</span> <span class="arrow p2-arrow">→</span></div>
-        <div>P3: <span class="p3">0.00</span> <span class="arrow p3-arrow">→</span></div>
-        <div class="timer">Next candle: <span class="cd">00:00</span></div>
+    let html = `<div class="card" id="${pair}"><strong>${pair}</strong>`;
+    TFs.forEach(tf => {
+        html += `
+        <div class="tf" data-tf="${tf}">
+            <div class="signal neutral">● Waiting for prices…</div>
+            <div>P1: <span class="p1">0.00</span> <span class="arrow p1-arrow">→</span></div>
+            <div>P2: <span class="p2">0.00</span> <span class="arrow p2-arrow">→</span></div>
+            <div>P3: <span class="p3">0.00</span> <span class="arrow p3-arrow">→</span></div>
+            <div class="timer">Next candle: <span class="cd">00:00</span></div>
+        </div>`;
+    });
+    html += `
         <div class="small htf">HTF: Neutral</div>
         <div class="warn fatigue"></div>
         <div class="warn risk"></div>
     </div>`;
+    dash.innerHTML += html;
 });
 
 // ================== LIVE PRICE FEED ==================
@@ -84,36 +89,39 @@ setInterval(() => {
             Math.sin(Date.now() / HTF_30M / 1000) * 0.05 +
             Math.sin(Date.now() / HTF_1H / 1000) * 0.05;
 
-        let p1 = probability(price, htfBias) - fatiguePenalty();
-        let p2 = p1 * DECAY;
-        let p3 = p2 * DECAY;
+        // Loop through all timeframes for this pair
+        const tfDivs = card.querySelectorAll(".tf");
+        tfDivs.forEach(tfDiv => {
+            const tf = parseInt(tfDiv.dataset.tf);
 
-        card.querySelector(".p1").textContent = p1.toFixed(2);
-        card.querySelector(".p2").textContent = p2.toFixed(2);
-        card.querySelector(".p3").textContent = p3.toFixed(2);
+            let p1 = probability(price, htfBias) - fatiguePenalty();
+            let p2 = p1 * DECAY;
+            let p3 = p2 * DECAY;
 
-        const sig = card.querySelector(".signal");
+            tfDiv.querySelector(".p1").textContent = p1.toFixed(2);
+            tfDiv.querySelector(".p2").textContent = p2.toFixed(2);
+            tfDiv.querySelector(".p3").textContent = p3.toFixed(2);
 
-        if (p1 > 0.6) {
-            sig.textContent = "↑ Bullish";
-            sig.className = "signal bull";
-        } else if (p1 < 0.4) {
-            sig.textContent = "↓ Bearish";
-            sig.className = "signal bear";
-        } else {
-            sig.textContent = "● Neutral";
-            sig.className = "signal neutral";
-        }
+            const sig = tfDiv.querySelector(".signal");
+            if (p1 > 0.6) {
+                sig.textContent = `↑ Bullish (${tf/60}m)`;
+                sig.className = "signal bull";
+            } else if (p1 < 0.4) {
+                sig.textContent = `↓ Bearish (${tf/60}m)`;
+                sig.className = "signal bear";
+            } else {
+                sig.textContent = `● Neutral (${tf/60}m)`;
+                sig.className = "signal neutral";
+            }
 
-        // Arrows
-        card.querySelector(".p1-arrow").textContent = p1>0.55?"↑":p1<0.45?"↓":"→";
-        card.querySelector(".p2-arrow").textContent = p2>0.55?"↑":p2<0.45?"↓":"→";
-        card.querySelector(".p3-arrow").textContent = p3>0.55?"↑":p3<0.45?"↓":"→";
+            tfDiv.querySelector(".p1-arrow").textContent = p1>0.55?"↑":p1<0.45?"↓":"→";
+            tfDiv.querySelector(".p2-arrow").textContent = p2>0.55?"↑":p2<0.45?"↓":"→";
+            tfDiv.querySelector(".p3-arrow").textContent = p3>0.55?"↑":p3<0.45?"↓":"→";
 
-        // Countdown
-        let r = countdown(EXEC_TF);
-        card.querySelector(".cd").textContent =
-            `${String(Math.floor(r/60)).padStart(2,"0")}:${String(r%60).padStart(2,"0")}`;
+            let r = countdown(tf);
+            tfDiv.querySelector(".cd").textContent =
+                `${String(Math.floor(r/60)).padStart(2,"0")}:${String(r%60).padStart(2,"0")}`;
+        });
 
         card.querySelector(".htf").textContent =
             htfBias > 0 ? "HTF: Bullish" : htfBias < 0 ? "HTF: Bearish" : "HTF: Neutral";
@@ -122,6 +130,7 @@ setInterval(() => {
             fatiguePenalty() > 0 ? "⚠ Fatigue risk – reduce trading" : "";
 
         card.querySelector(".risk").textContent =
-            p1 < LOW_PROB_WARNING ? "⚠ Low probability – skip trade" : "";
+            Array.from(tfDivs).some(div => parseFloat(div.querySelector(".p1").textContent) < LOW_PROB_WARNING)
+            ? "⚠ Low probability – skip trade" : "";
     });
 }, 1000);
