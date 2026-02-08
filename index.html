@@ -2,13 +2,41 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Live FX Probability Dashboard</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="style.css">
+<title>Forex Forecast Dashboard</title>
+<style>
+  body { background-color: #000; color: #fff; font-family: Arial, sans-serif; padding: 20px; }
+  h1 { text-align: center; margin-bottom: 20px; }
+  select, .timeframe-select { margin: 10px 10px 20px 0; padding: 5px; font-size: 16px; }
+  #dashboard { margin-top: 20px; padding: 15px; border: 1px solid #fff; border-radius: 8px; }
+  .pair-title { font-size: 22px; margin-bottom: 15px; text-align: center; }
+  .signal { margin: 8px 0; font-size: 18px; }
+  .bullish { color: #00FF00; font-weight: bold; }
+  .neutral { color: #FFFF00; font-weight: bold; }
+  .bearish { color: #FF0000; font-weight: bold; }
+</style>
 </head>
 <body>
-<h1>Live FX Probability Dashboard</h1>
-<div class="grid" id="dashboard"></div>
-<script src="script.js"></script>
+
+<h1>Forex Forecast Dashboard</h1>
+
+<label for="pairSelect">Select Currency Pair:</label>
+<select id="pairSelect"></select>
+
+<label for="timeframeSelect">Select Timeframe:</label>
+<select id="timeframeSelect" class="timeframe-select">
+  <option value="1">1 Minute</option>
+  <option value="3" selected>3 Minutes</option>
+  <option value="5">5 Minutes</option>
+</select>
+
+<div id="dashboard">
+  <div class="pair-title" id="pairTitle"></div>
+  <div class="signal" id="p1Signal"></div>
+  <div class="signal" id="p2Signal"></div>
+  <div class="signal" id="p3Signal"></div>
+  <div class="signal" id="countdown"></div>
+</div>
+
+<script src="dashboard.js"></script>
 </body>
 </html>
