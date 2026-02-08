@@ -13,19 +13,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // DOM Elements
   const pairSelect = document.getElementById("pairSelect");
-  PAIRS.forEach(pair => {
-    let o = document.createElement("option");
-    o.value = pair;
-    o.textContent = pair;
-    pairSelect.appendChild(o);
-  });
-
+  const timeframeSelect = document.getElementById("timeframeSelect");
   const pairTitle = document.getElementById("pairTitle");
   const p1Signal = document.getElementById("p1Signal");
   const p2Signal = document.getElementById("p2Signal");
   const p3Signal = document.getElementById("p3Signal");
   const countdown = document.getElementById("countdown");
-  const timeframeSelect = document.getElementById("timeframeSelect");
+
+  // Populate currency pair dropdown
+  PAIRS.forEach(pair => {
+      let o = document.createElement("option");
+      o.value = pair;
+      o.textContent = pair;
+      pairSelect.appendChild(o);
+  });
 
   // State
   let selectedPair = PAIRS[0];
@@ -183,10 +184,19 @@ document.addEventListener("DOMContentLoaded", () => {
       return {bull:parseFloat(bull.toFixed(2)), neutral:parseFloat(neutral.toFixed(2)), bear:parseFloat(bear.toFixed(2)), power:parseFloat(power.toFixed(2))};
   }
 
-  function getSignalText(prob){
-      if(prob.bull>=0.75) return {text:"Bullish ↑", className:"bullish"};
-      if(prob.bull>=0.65) return {text:"Neutral ●", className:"neutral"};
-      return {text:"Bearish ↓", className:"bearish"};
+  function updateBars(container, probs){
+      const bullBar = container.querySelector(".bar-bull");
+      const neutralBar = container.querySelector(".bar-neutral");
+      const bearBar = container.querySelector(".bar-bear");
+
+      bullBar.style.width = (probs.bull*100).toFixed(1) + "%";
+      bullBar.textContent = probs.bull;
+
+      neutralBar.style.width = (probs.neutral*100).toFixed(1) + "%";
+      neutralBar.textContent = probs.neutral;
+
+      bearBar.style.width = (probs.bear*100).toFixed(1) + "%";
+      bearBar.textContent = probs.bear;
   }
 
   // ======================== UPDATE DASHBOARD ========================
@@ -194,16 +204,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const probs = calculateProbability();
       pairTitle.textContent = `Forecast for ${selectedPair} (${selectedTimeframe}m)`;
 
-      p1Signal.innerHTML = `Next Candle: <span class="${getSignalText(probs).className}">${getSignalText(probs).text}</span> | Bull: ${probs.bull} | Neutral: ${probs.neutral} | Bear: ${probs.bear} | Power: ${probs.power}`;
+      updateBars(p1Signal, probs);
 
-      // Scale for 2nd and 3rd candle
-      let p2 = {...probs, bull:(probs.bull*0.9).toFixed(2), bear:(probs.bear*0.9).toFixed(2), neutral:(probs.neutral*0.9).toFixed(2)};
-      p2Signal.innerHTML = `2nd Candle: <span class="${getSignalText(p2).className}">${getSignalText(p2).text}</span> | Bull: ${p2.bull} | Neutral: ${p2.neutral} | Bear: ${p2.bear} | Power: ${probs.power}`;
+      let p2 = {...probs, bull:(probs.bull*0.9), bear:(probs.bear*0.9), neutral:(probs.neutral*0.9)};
+      updateBars(p2Signal, p2);
 
-      let p3 = {...probs, bull:(probs.bull*0.8).toFixed(2), bear:(probs.bear*0.8).toFixed(2), neutral:(probs.neutral*0.8).toFixed(2)};
-      p3Signal.innerHTML = `3rd Candle: <span class="${getSignalText(p3).className}">${getSignalText(p3).text}</span> | Bull: ${p3.bull} | Neutral: ${p3.neutral} | Bear: ${p3.bear} | Power: ${probs.power}`;
+      let p3 = {...probs, bull:(probs.bull*0.8), bear:(probs.bear*0.8), neutral:(probs.neutral*0.8)};
+      updateBars(p3Signal, p3);
 
-      // Countdown
       let remaining = nextCandle - Date.now();
       if(remaining<0){
           nextCandle = Date.now() + selectedTimeframe*60000;
@@ -215,6 +223,7 @@ document.addEventListener("DOMContentLoaded", () => {
       countdown.textContent = `Next Candle in: ${m}m ${s}s`;
   }
 
+  // ======================== INITIAL FETCH & INTERVAL ========================
   fetchCandleHistory();
   setInterval(updateDashboard, 1000); // update dashboard every second
   setInterval(fetchCandleHistory, 5000); // fetch new candles every 5 seconds
