@@ -1,17 +1,22 @@
-const API_KEY ="03df54131c4144b58b58aa146c0fcecf"; // Replace with your real key
+// ================== INSERT YOUR API KEY HERE ==================
+const API_KEY = "03df54131c4144b58b58aa146c0fcecf"; // Replace YOUR_REAL_API_KEY_HERE with your actual TwelveData API key
+// =============================================================
 
+// Settings
 const PAIRS = ["EUR/USD","GBP/USD","USD/JPY","USD/CHF","USD/CAD","AUD/USD","NZD/USD"];
-const EXEC_TF = 300;
+const EXEC_TF = 300;      // 5 minutes
 const HTF_30M = 1800;
 const HTF_1H = 3600;
 const DECAY = 0.95;
 const FATIGUE_MINUTES = 90;
 const LOW_PROB_WARNING = 0.55;
 
+// State
 let prices = {};
 let candleStart = Math.floor(Date.now() / 1000);
 let sessionStart = Date.now();
 
+// Build UI
 const dash = document.getElementById("dashboard");
 
 PAIRS.forEach(pair => {
@@ -29,6 +34,7 @@ PAIRS.forEach(pair => {
     </div>`;
 });
 
+// ================== LIVE PRICE FEED ==================
 const ws = new WebSocket(`wss://ws.twelvedata.com/v1/quotes/price?apikey=${API_KEY}`);
 
 ws.onopen = () => {
@@ -45,11 +51,13 @@ ws.onmessage = e => {
     }
 };
 
+// Countdown
 function countdown(tf) {
     const now = Math.floor(Date.now() / 1000);
     return tf - ((now - candleStart) % tf);
 }
 
+// Probability
 function probability(price, htfBias) {
     let momentum = Math.sin(Date.now() / 60000);
     let priceBias = (price % 1) * 0.4;
@@ -57,11 +65,13 @@ function probability(price, htfBias) {
     return Math.max(0.05, Math.min(0.95, p));
 }
 
+// Fatigue
 function fatiguePenalty() {
     let mins = (Date.now() - sessionStart) / 60000;
     return mins > FATIGUE_MINUTES ? 0.07 : 0;
 }
 
+// Update Loop
 setInterval(() => {
     PAIRS.forEach(pair => {
         const card = document.getElementById(pair);
@@ -95,10 +105,12 @@ setInterval(() => {
             sig.className = "signal neutral";
         }
 
+        // Arrows
         card.querySelector(".p1-arrow").textContent = p1>0.55?"↑":p1<0.45?"↓":"→";
         card.querySelector(".p2-arrow").textContent = p2>0.55?"↑":p2<0.45?"↓":"→";
         card.querySelector(".p3-arrow").textContent = p3>0.55?"↑":p3<0.45?"↓":"→";
 
+        // Countdown
         let r = countdown(EXEC_TF);
         card.querySelector(".cd").textContent =
             `${String(Math.floor(r/60)).padStart(2,"0")}:${String(r%60).padStart(2,"0")}`;
