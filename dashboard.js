@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
 
   // ================== INSERT YOUR API KEY HERE ==================
-  const API_KEY = "03df54131c4144b58b58aa146c0fcecf"; 
+  const API_KEY = "f6e69ff791404a24b736a913676eca5e"; 
   // =============================================================
 
   // Currency Pairs
@@ -29,8 +29,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // State
   let selectedPair = PAIRS[0];
-  let selectedTimeframe = parseInt(timeframeSelect.value); // default from select
-  let nextCandle = Date.now() + selectedTimeframe*60*1000;
+  let selectedTimeframe = parseInt(timeframeSelect.value);
+  let nextCandle = Date.now() + selectedTimeframe*60000;
   let candleHistory = [];
 
   // Event handlers
@@ -140,7 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ======================== PROBABILITY & SIGNAL ========================
   function calculateProbability(){
-      if(candleHistory.length<30) return {p1:50,p2:50,p3:50,conf:50};
+      if(candleHistory.length<30) return {bull:0.5, neutral:0.1, bear:0.4, power:0.5};
       const closes = candleHistory.map(c=>c.close);
 
       const emaFast = EMA(closes, 9);
@@ -160,26 +160,32 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const atrArray = ATR(candleHistory);
       const atr = atrArray[atrArray.length-1] || 0;
-      const atrSignal = atr > 0 ? 1 : 0;
 
-      const weight = {ema:0.25, rsi:0.2, macd:0.2, bb:0.15, atr:0.1, trend:0.1};
       const trendSignal = emaSignal + macdSignal;
 
-      let prob = 50 + emaSignal*weight.ema*100 + rsiSignal*weight.rsi*100 + macdSignal*weight.macd*100 + bbSignal*weight.bb*100 + trendSignal*weight.trend*10;
-      prob = Math.max(5, Math.min(95, prob));
-      let conf = Math.min(100, prob*atr*2 + 10);
+      const weight = {ema:0.25, rsi:0.2, macd:0.2, bb:0.15, trend:0.1};
 
-      return {
-          p1: Math.round(prob),
-          p2: Math.round(prob*0.9),
-          p3: Math.round(prob*0.8),
-          conf: Math.round(conf)
-      };
+      let rawScore = emaSignal*weight.ema + rsiSignal*weight.rsi + macdSignal*weight.macd + bbSignal*weight.bb + trendSignal*weight.trend*0.05;
+
+      // Convert rawScore (-1 to 1 approx) to 0-1
+      let bull = (rawScore + 1)/2;
+      let bear = 1 - bull;
+
+      // Include neutral margin based on closeness to 0
+      let neutralMargin = 0.1 * (1 - Math.abs(rawScore));
+      bull = bull * (1 - neutralMargin);
+      bear = bear * (1 - neutralMargin);
+      let neutral = neutralMargin;
+
+      // Power normalized 0-1
+      let power = Math.min(1, bull + bear) * atr/Math.max(...atrArray);
+
+      return {bull:parseFloat(bull.toFixed(2)), neutral:parseFloat(neutral.toFixed(2)), bear:parseFloat(bear.toFixed(2)), power:parseFloat(power.toFixed(2))};
   }
 
-  function getSignalClass(prob){
-      if(prob>=75) return {text:"Bullish ↑", className:"bullish"};
-      if(prob>=65) return {text:"Neutral ●", className:"neutral"};
+  function getSignalText(prob){
+      if(prob.bull>=0.75) return {text:"Bullish ↑", className:"bullish"};
+      if(prob.bull>=0.65) return {text:"Neutral ●", className:"neutral"};
       return {text:"Bearish ↓", className:"bearish"};
   }
 
@@ -188,15 +194,16 @@ document.addEventListener("DOMContentLoaded", () => {
       const probs = calculateProbability();
       pairTitle.textContent = `Forecast for ${selectedPair} (${selectedTimeframe}m)`;
 
-      let s1 = getSignalClass(probs.p1);
-      p1Signal.innerHTML = `Next Candle: <span class="${s1.className}">${s1.text}</span> (${probs.p1}%) - Power: ${probs.conf}%`;
+      p1Signal.innerHTML = `Next Candle: <span class="${getSignalText(probs).className}">${getSignalText(probs).text}</span> | Bull: ${probs.bull} | Neutral: ${probs.neutral} | Bear: ${probs.bear} | Power: ${probs.power}`;
 
-      let s2 = getSignalClass(probs.p2);
-      p2Signal.innerHTML = `2nd Candle: <span class="${s2.className}">${s2.text}</span> (${probs.p2}%) - Power: ${probs.conf}%`;
+      // Scale for 2nd and 3rd candle
+      let p2 = {...probs, bull:(probs.bull*0.9).toFixed(2), bear:(probs.bear*0.9).toFixed(2), neutral:(probs.neutral*0.9).toFixed(2)};
+      p2Signal.innerHTML = `2nd Candle: <span class="${getSignalText(p2).className}">${getSignalText(p2).text}</span> | Bull: ${p2.bull} | Neutral: ${p2.neutral} | Bear: ${p2.bear} | Power: ${probs.power}`;
 
-      let s3 = getSignalClass(probs.p3);
-      p3Signal.innerHTML = `3rd Candle: <span class="${s3.className}">${s3.text}</span> (${probs.p3}%) - Power: ${probs.conf}%`;
+      let p3 = {...probs, bull:(probs.bull*0.8).toFixed(2), bear:(probs.bear*0.8).toFixed(2), neutral:(probs.neutral*0.8).toFixed(2)};
+      p3Signal.innerHTML = `3rd Candle: <span class="${getSignalText(p3).className}">${getSignalText(p3).text}</span> | Bull: ${p3.bull} | Neutral: ${p3.neutral} | Bear: ${p3.bear} | Power: ${probs.power}`;
 
+      // Countdown
       let remaining = nextCandle - Date.now();
       if(remaining<0){
           nextCandle = Date.now() + selectedTimeframe*60000;
